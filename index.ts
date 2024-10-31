@@ -12,6 +12,8 @@ import {retrieveEnvVariable} from "./env"
 import { MarketCache } from './marketcache';
 
 const PRIVATE_KEY = retrieveEnvVariable('PRIVATE_KEY', logger);
+const PRIVATE_KEY1 = retrieveEnvVariable('PRIVATE_KEY', logger);
+const PRIVATE_KEY2 = retrieveEnvVariable('PRIVATE_KEY', logger);
 const CUSTOM_FEE = retrieveEnvVariable('CUSTOM_FEE', logger);
 const QUOTE_AMOUNT = retrieveEnvVariable('QUOTE_AMOUNT', logger);
 const MAX_BUY_RETRIES = retrieveEnvVariable('MAX_BUY_RETRIES', logger);
@@ -27,8 +29,12 @@ function getWallet(pk: string): Keypair {
 const quoteToken = Token.WSOL //buy using wrapped solana
 
 const wallet = getWallet(PRIVATE_KEY.trim());
+const wallet1 = getWallet(PRIVATE_KEY1.trim());
+const wallet2 = getWallet(PRIVATE_KEY2.trim());
+
+const wallets = [wallet,wallet1,wallet2];
+
 const botConfig = {
-  wallet,
   quoteAta: getAssociatedTokenAddressSync(quoteToken.mint, wallet.publicKey),
   quoteToken,
   quoteAmount: new TokenAmount(quoteToken, QUOTE_AMOUNT, false),
@@ -50,10 +56,13 @@ async function  subscribeToRaydiumPools(config: { quoteToken: Token }) {
         const poolState = LIQUIDITY_STATE_LAYOUT_V4.decode(updatedAccountInfo.accountInfo.data);
         if (poolState.baseMint.toString() == TOKEN_TO_BUY){
             // buy
-            await bot.buy(updatedAccountInfo.accountId, poolState);
+            const len = wallets.length
+            for(let i=0; i<len; ++i) {
+              await bot.buy(updatedAccountInfo.accountId, poolState,wallets[i]);
+            }
         }else{
           logger.info({tokenAddress:poolState.baseMint.toString(),poolId:updatedAccountInfo.accountId.toString()});
-            return;
+          return;
         }
     },
     connection.commitment,
@@ -82,12 +91,7 @@ async function  subscribeToRaydiumPools(config: { quoteToken: Token }) {
 }
 
 async function main(){
-  const valid = await bot.validate();
 
-if (!valid) {
-  logger.info('Bot is exiting...');
-  process.exit(1);
-}
   await subscribeToRaydiumPools({
     quoteToken,
   });

@@ -75,7 +75,6 @@ function createPoolKeys(
 }
 
 interface BotConfig {
-  wallet: Keypair;
   quoteAta: PublicKey;
   quoteToken: Token;
   quoteAmount: TokenAmount;
@@ -101,19 +100,7 @@ export class Bot {
     this.mutex = new Mutex();
   }
 
-  async validate() {
-    try {
-      await getAccount(this.connection, this.config.quoteAta, this.connection.commitment);
-    } catch (error) {
-      logger.error(
-        `${this.config.quoteToken.symbol} token account not found in wallet: ${this.config.wallet.publicKey.toString()}`,
-      );
-      return false;
-    }
-
-    return true;
-  }
-  public async buy(accountId: PublicKey, poolState: LiquidityStateV4) {
+  public async buy(accountId: PublicKey, poolState: LiquidityStateV4,wallet:Keypair) {
     logger.trace({ mint: poolState.baseMint }, `Processing new pool...`);
     if (this.config.oneTokenAtATime) {
       if (this.mutex.isLocked()) {
@@ -130,13 +117,13 @@ export class Bot {
     try {
       const [market, mintAta] = await Promise.all([
         this.marketStorage.get(poolState.marketId.toString()),
-        getAssociatedTokenAddress(poolState.baseMint, this.config.wallet.publicKey),
+        getAssociatedTokenAddress(poolState.baseMint, wallet.publicKey),
       ]);
       const poolKeys: LiquidityPoolKeysV4 = createPoolKeys(accountId, poolState, market);
 
 
 
-      for (let i = 0; i < this.config.maxBuyRetries; i++) {
+      for (let i = 0; i < this.config.maxBuyRetries; ++i) {
         try {
           logger.info(
             { mint: poolState.baseMint.toString() },
@@ -152,7 +139,7 @@ export class Bot {
             tokenOut,
             this.config.quoteAmount,
             this.config.buySlippage,
-            this.config.wallet,
+            wallet,
           );
 
           if (result.confirmed) {
