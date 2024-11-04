@@ -93,7 +93,7 @@ async function subscribeToRaydiumPools() {
             await bot.buy(updatedAccountInfo.accountId, poolState,wallets[i].wallet,wallets[i].amount);
           }
       }else{
-       
+      
         return;
       }
        
