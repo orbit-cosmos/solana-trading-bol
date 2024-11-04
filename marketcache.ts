@@ -1,5 +1,5 @@
 import { Commitment, Connection, PublicKey } from '@solana/web3.js';
-import { GetStructureSchema, MAINNET_PROGRAM_ID, MARKET_STATE_LAYOUT_V3, publicKey, struct, Token } from '@raydium-io/raydium-sdk';
+import { GetStructureSchema, MARKET_STATE_LAYOUT_V3, publicKey, struct } from '@raydium-io/raydium-sdk';
 import { logger } from './logger';
 const MINIMAL_MARKET_STATE_LAYOUT_V3 = struct([publicKey('eventQueue'), publicKey('bids'), publicKey('asks')]);
 type MinimalMarketStateLayoutV3 = typeof MINIMAL_MARKET_STATE_LAYOUT_V3;
@@ -26,6 +26,12 @@ export class MarketCache {
   constructor(private readonly connection: Connection) {}
 
 
+  public save(marketId: string, keys: MinimalMarketLayoutV3) {
+    if (!this.keys.has(marketId)) {
+      logger.trace({}, `Caching new market: ${marketId}`);
+      this.keys.set(marketId, keys);
+    }
+  }
 
 
 

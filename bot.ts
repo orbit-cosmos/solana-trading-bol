@@ -4,15 +4,13 @@ import {
   PublicKey,
   TransactionMessage,
   VersionedTransaction,
-  Commitment
 } from '@solana/web3.js';
 import {
   createAssociatedTokenAccountIdempotentInstruction,
-  getAccount,
   getAssociatedTokenAddress,
   TOKEN_PROGRAM_ID,
 } from '@solana/spl-token';
-import { GetStructureSchema, MARKET_STATE_LAYOUT_V3,
+import { GetStructureSchema,
   publicKey, struct, Liquidity,
   LiquidityPoolKeys, LiquidityPoolKeysV4,
   LiquidityStateV4, MAINNET_PROGRAM_ID,
@@ -23,7 +21,7 @@ import { JitoTransactionExecutor } from './jeto';
 import { logger } from './logger';
 import { retrieveEnvVariable } from './env';
 import { MarketCache } from './marketcache';
-
+import { PoolCache } from './poolcache';
 
 
 const NETWORK = retrieveEnvVariable('NETWORK', logger);
@@ -77,7 +75,6 @@ function createPoolKeys(
 interface BotConfig {
   quoteAta: PublicKey;
   quoteToken: Token;
-  quoteAmount: TokenAmount;
   maxBuyRetries: number;
   buySlippage: number;
   oneTokenAtATime: boolean;
@@ -95,12 +92,13 @@ export class Bot {
     private readonly txExecutor: JitoTransactionExecutor,
     readonly config: BotConfig,
     private readonly marketStorage: MarketCache,
+    private readonly poolStorage: PoolCache,
 
   ) {
     this.mutex = new Mutex();
   }
 
-  public async buy(accountId: PublicKey, poolState: LiquidityStateV4,wallet:Keypair) {
+  public async buy(accountId: PublicKey, poolState: LiquidityStateV4,wallet:Keypair,quoteAmount: TokenAmount) {
     logger.trace({ mint: poolState.baseMint }, `Processing new pool...`);
     if (this.config.oneTokenAtATime) {
       if (this.mutex.isLocked()) {
@@ -137,7 +135,7 @@ export class Bot {
             mintAta,
             this.config.quoteToken,
             tokenOut,
-            this.config.quoteAmount,
+            quoteAmount,
             this.config.buySlippage,
             wallet,
           );
