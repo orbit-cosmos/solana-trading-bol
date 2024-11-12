@@ -21,7 +21,6 @@ import { JitoTransactionExecutor } from './jeto';
 import { logger } from './logger';
 import { retrieveEnvVariable } from './env';
 import { MarketCache } from './marketcache';
-import { PoolCache } from './poolcache';
 
 
 const NETWORK = retrieveEnvVariable('NETWORK', logger);
@@ -73,9 +72,7 @@ function createPoolKeys(
 }
 
 interface BotConfig {
-  quoteAta: PublicKey;
   quoteToken: Token;
-  maxBuyRetries: number;
   buySlippage: number;
   oneTokenAtATime: boolean;
 }
@@ -84,7 +81,7 @@ interface BotConfig {
 export class Bot {
 
   // one token at the time
-  private readonly mutex: Mutex;
+  // private readonly mutex: Mutex;
 
   constructor(
     private readonly connection: Connection,
@@ -92,46 +89,25 @@ export class Bot {
     private readonly txExecutor: JitoTransactionExecutor,
     readonly config: BotConfig,
     private readonly marketStorage: MarketCache,
-    private readonly poolStorage: PoolCache,
 
   ) {
-    this.mutex = new Mutex();
+    // this.mutex = new Mutex();
   }
 
-  public async buy(accountId: PublicKey, poolState: LiquidityStateV4,wallet:Keypair,quoteAmount: TokenAmount) {
-    logger.trace({ mint: poolState.baseMint }, `Processing new pool...`);
-    if (this.config.oneTokenAtATime) {
-      if (this.mutex.isLocked()) {
-        logger.debug(
-          { mint: poolState.baseMint.toString() },
-          `Skipping buy because one token at a time is turned on and token is already being processed`,
-        );
-        return;
-      }
-
-      await this.mutex.acquire();
-    }
-
+  public async buy(accountId: PublicKey, poolState: LiquidityStateV4,wallet:Keypair,quoteAmount: TokenAmount,  quoteAta: PublicKey) {
     try {
       const [market, mintAta] = await Promise.all([
         this.marketStorage.get(poolState.marketId.toString()),
         getAssociatedTokenAddress(poolState.baseMint, wallet.publicKey),
       ]);
       const poolKeys: LiquidityPoolKeysV4 = createPoolKeys(accountId, poolState, market);
-
-
-
-      for (let i = 0; i < this.config.maxBuyRetries; ++i) {
         try {
-          logger.info(
-            { mint: poolState.baseMint.toString() },
-            `Send buy transaction attempt: ${i + 1}/${this.config.maxBuyRetries}`,
-          );
+        
           const tokenOut = new Token(TOKEN_PROGRAM_ID, poolKeys.baseMint, poolKeys.baseDecimals);
 
           const result = await this.swap(
             poolKeys,
-            this.config.quoteAta,
+            quoteAta,
             mintAta,
             this.config.quoteToken,
             tokenOut,
@@ -140,37 +116,15 @@ export class Bot {
             wallet,
           );
 
-          if (result.confirmed) {
-            logger.info(
-              {
-                mint: poolState.baseMint.toString(),
-                signature: result.signature,
-                url: `https://solscan.io/tx/${result.signature}?cluster=${NETWORK}`,
-              },
-              `Confirmed buy tx`,
-            );
+          console.log("tx hash",result.signature)
 
-            break;
-          }
-
-          logger.info(
-            {
-              mint: poolState.baseMint.toString(),
-              signature: result.signature,
-              error: result.error,
-            },
-            `Error confirming buy tx`,
-          );
+       
         } catch (error) {
           logger.debug({ mint: poolState.baseMint.toString(), error }, `Error confirming buy transaction`);
         }
-      }
+      
     } catch (error) {
       logger.error({ mint: poolState.baseMint.toString(), error }, `Failed to buy token`);
-    } finally {
-      if (this.config.oneTokenAtATime) {
-        this.mutex.release();
-      }
     }
   }
   // noinspection JSUnusedLocalSymbols

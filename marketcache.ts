@@ -39,7 +39,6 @@ export class MarketCache {
     if (this.keys.has(marketId)) {
       return this.keys.get(marketId)!;
     }
-
     logger.trace({}, `Fetching new market keys for ${marketId}`);
     const market = await this.fetch(marketId);
     this.keys.set(marketId, market);
